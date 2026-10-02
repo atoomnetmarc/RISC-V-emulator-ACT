@@ -2,7 +2,9 @@
 # Wrapper that bridges the ACT4 framework clone (in ./work/src/riscv-arch-test)
 # with the config in this repository.
 
-# ACT4 framework clone (pinned to tag 4.0.0, gitignored under ./work/src/).
+# ACT4 framework clone (gitignored under ./work/src/). The pinned tag lives in
+# ../RISC-V-emulator-Tools-Container/Dockerfile (ARG ACT_TAG); the container's
+# ENV ACT_DIR=/opt/riscv-arch-test overrides this path.
 ACT_DIR ?= $(CURDIR)/work/src/riscv-arch-test
 
 # Compiler tag. Namespaces the generated config, the ELFs, and the results
