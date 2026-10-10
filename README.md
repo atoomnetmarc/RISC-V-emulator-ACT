@@ -18,7 +18,7 @@ In a second terminal, build the emulator binary and throw a client at it:
 
 ```bash
 pio run -e RV32I -d ../RISC-V-emulator-Native
-client/act-work-client --server http://127.0.0.1:8000 \
+PYTHONPATH=client python -m actwork --server http://127.0.0.1:8000 \
   --ini ../RISC-V-emulator-Native/platformio_isa-extension-combination_env.ini \
   --smoke '^rv32i$' --tag gcc \
   --load-base 0x80000000 --halt-address 0x20000000 \
@@ -38,7 +38,7 @@ The container runs the ACT framework and the DUT work server (`server/`, plain P
 One client per DUT. The client reads the ini, selects the ISA strings (`--full` for every environment or `--smoke` for the `# smoke`-marked ones, then the filter regex), posts the batch with its generation settings, and iterates: claim, run on the DUT, post output. The `--run` template is any shell command with a `{binary}` placeholder, so any DUT works. The lease doubles as the run timeout: the client kills the DUT when it expires, which fails the test for lack of a verdict signature.
 
 ```bash
-client/act-work-client --server http://127.0.0.1:8000 \
+PYTHONPATH=client python -m actwork --server http://127.0.0.1:8000 \
   --ini ../RISC-V-emulator-Native/platformio_isa-extension-combination_env.ini \
   --full '^RV32IM' --tag gcc-13 \
   --load-base 0x80000000 --halt-address 0x20000000 \
@@ -65,7 +65,7 @@ cp ../RISC-V-emulator-AVR/.pio/build/ATmega1284P_ACT/firmware.hex ../RISC-V-emul
 The AVR client is just another client: it selects from the AVR project's own ini, where only the ACT firmware envs carry `# isa:` / `# smoke` markers (`ATmega1284P_ACT` marks the full ISA combination it implements; the other envs are core builds, not test firmwares). It posts its own settings (`--halt-address 0x02000000`) under its own tag and runs every test against the one ACT firmware:
 
 ```bash
-client/act-work-client --server http://127.0.0.1:8000 \
+PYTHONPATH=client python -m actwork --server http://127.0.0.1:8000 \
   --ini ../RISC-V-emulator-AVR/platformio.ini \
   --smoke --tag avr \
   --load-base 0x80000000 --halt-address 0x02000000 \
