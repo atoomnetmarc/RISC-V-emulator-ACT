@@ -1,7 +1,8 @@
 # Copyright Marc Ketel
 # SPDX-License-Identifier: Apache-2.0
 #
-# Serialized background generation queue: one `make elfs` at a time.
+# Background generation queue: `make elfs` runs concurrently for pairs with
+# different configs, and serially for pairs sharing one config.
 
 import json
 import logging
@@ -20,14 +21,21 @@ FAILED = "failed"
 
 
 class GenerationQueue:
-    """Runs `make elfs` for each (config, tag) pair, one at a time."""
+    """Runs `make elfs` for each (config, tag) pair.
 
-    def __init__(self) -> None:
+    Up to `workers` pairs run concurrently. Pairs that share a config are
+    serialized with a per-config lock, because the framework builds into a
+    work directory named after the config.
+    """
+
+    def __init__(self, workers: int = 4) -> None:
         self.status: dict[tuple, str] = {}
         self.error: dict[tuple, str] = {}
         self._queue: queue.Queue = queue.Queue()
-        self._thread = threading.Thread(target=self._worker, daemon=True)
-        self._thread.start()
+        self._locks_guard = threading.Lock()
+        self._config_locks: dict[str, threading.Lock] = {}
+        for _ in range(max(1, workers)):
+            threading.Thread(target=self._worker, daemon=True).start()
 
     def submit(self, config: str, tag: str, settings: dict) -> None:
         self.status[(config, tag)] = GENERATING
@@ -40,7 +48,8 @@ class GenerationQueue:
             config, tag, settings = self._queue.get()
             LOG.info("generation: picked up %s/%s with settings %s", config, tag, settings)
             try:
-                self._generate(config, tag, settings)
+                with self._config_lock(config):
+                    self._generate(config, tag, settings)
                 self.status[(config, tag)] = READY
                 self.error.pop((config, tag), None)
                 LOG.info("generation: %s/%s ready", config, tag)
@@ -48,6 +57,14 @@ class GenerationQueue:
                 LOG.exception("generation: %s/%s failed", config, tag)
                 self.status[(config, tag)] = FAILED
                 self.error[(config, tag)] = str(exc)
+
+    def _config_lock(self, config: str) -> threading.Lock:
+        with self._locks_guard:
+            lock = self._config_locks.get(config)
+            if lock is None:
+                lock = threading.Lock()
+                self._config_locks[config] = lock
+            return lock
 
     def _generate(self, config: str, tag: str, settings: dict) -> None:
         pair = pair_dir(config, tag)

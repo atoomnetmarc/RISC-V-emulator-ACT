@@ -8,6 +8,7 @@
 import argparse
 import base64
 import json
+import os
 import subprocess
 import tempfile
 import threading
@@ -71,7 +72,7 @@ def main() -> None:
     parser.add_argument("--load-base", required=True, help="generation load base (e.g. 0x80000000)")
     parser.add_argument("--halt-address", required=True, help="generation halt address (e.g. 0x20000000)")
     parser.add_argument("--run", required=True, help="DUT run command template with {env} and {binary} placeholders")
-    parser.add_argument("--jobs", type=int, default=1, help="concurrent workers per config")
+    parser.add_argument("--jobs", type=int, default=os.cpu_count() or 1, help="concurrent workers per config")
     parser.add_argument("--lease-seconds", type=int, default=30)
     parser.add_argument("filter", nargs="?", default=".", help="regex applied after subset selection")
     args = parser.parse_args()

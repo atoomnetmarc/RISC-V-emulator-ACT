@@ -22,7 +22,7 @@ PYTHONPATH=client python -m actwork --server http://127.0.0.1:8000 \
   --ini ../RISC-V-emulator-Native/platformio_isa-extension-combination_env.ini \
   --smoke '^rv32i$' --tag gcc \
   --load-base 0x80000000 --halt-address 0x20000000 \
-  --run '../RISC-V-emulator-Native/binaries/gcc/{env} {binary}' --jobs 4
+  --run '../RISC-V-emulator-Native/binaries/gcc/{env} {binary}'
 ```
 
 Watch live progress at http://127.0.0.1:8000/ and the failure report at http://127.0.0.1:8000/report.
@@ -42,7 +42,7 @@ PYTHONPATH=client python -m actwork --server http://127.0.0.1:8000 \
   --ini ../RISC-V-emulator-Native/platformio_isa-extension-combination_env.ini \
   --full '^RV32IM' --tag gcc-13 \
   --load-base 0x80000000 --halt-address 0x20000000 \
-  --run './binaries/gcc/{env} {binary}' --jobs 4
+  --run './binaries/gcc/{env} {binary}'
 ```
 
 A client restart can re-post its batch without losing results; claims expire after `--lease-seconds` and the tests are re-handed out.
@@ -76,7 +76,7 @@ PYTHONPATH=client python -m actwork --server http://127.0.0.1:8000 \
   --ini ../RISC-V-emulator-AVR/platformio.ini \
   --smoke --tag avr \
   --load-base 0x80000000 --halt-address 0x02000000 \
-  --run '../RISC-V-emulator-SimAVR/binaries/gcc/simavr-host ../RISC-V-emulator-AVR/hex/ATmega1284P_ACT.hex {binary}' --jobs 4
+  --run '../RISC-V-emulator-SimAVR/binaries/gcc/simavr-host ../RISC-V-emulator-AVR/hex/ATmega1284P_ACT.hex {binary}'
 ```
 
 The simavr wrapper builds in `../RISC-V-emulator-SimAVR` (env `simavr-host`). To debug a failing test, point `--run` at the disassembly firmware instead: build `ATmega1284P_ACT_DISASM` (per-instruction UART disassembly, much slower) and copy it the same way.

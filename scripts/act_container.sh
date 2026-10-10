@@ -8,6 +8,7 @@
 #
 #   scripts/act_container.sh
 #   ACT_PORT=9000 scripts/act_container.sh
+#   SERVER_ARGS="--workers 32" scripts/act_container.sh
 #
 # With arguments: dumb wrapper. Resolves the image, assembles the podman run
 # command (mounts + workdir + INI_FILE export) and exec's the given command
@@ -56,7 +57,7 @@ if [[ $# -eq 0 ]]; then
     -e INI_FILE=/emulator/platformio_isa-extension-combination_env.ini \
     -e UV_NO_SYNC=1 \
     -p "${ACT_PORT:-8000}:8000" \
-    -- "$IMAGE" python3 -m server
+    -- "$IMAGE" python3 -m server ${SERVER_ARGS:-}
 fi
 
 # Mounts:
