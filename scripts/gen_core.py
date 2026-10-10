@@ -176,13 +176,13 @@ SUBSETS = {
     "Zicond": {
         "udb": [("Zicond", "1.0.0")],
         "sail": ["Zicond"],
-        "params": ["  # Zicond params", "  TIME_CSR_IMPLEMENTED: true"],
+        "params": [],
         "header": ["ZICOND_SUPPORTED"],
     },
     "Zicntr": {
         "udb": [("Zicntr", "2.0.0")],
         "sail": ["Zicntr"],
-        "params": [],
+        "params": ["  # Zicntr params", "  TIME_CSR_IMPLEMENTED: true"],
         "header": [],
     },
     "Zihintntl": {
@@ -274,8 +274,7 @@ def gen_yaml(out: Path, config: str, env: str, subsets: list) -> None:
     for subset in subsets:
         meta = SUBSETS[subset]
         ext_lines += [f'  - {{ name: {name}, version: "= {version}" }}' for name, version in meta["udb"]]
-        # TIME_CSR_IMPLEMENTED is only defined for configs with Zicntr.
-        if meta["params"] and not (subset == "Zicond" and "Zicntr" not in subsets):
+        if meta["params"]:
             param_blocks.append("\n".join(meta["params"]))
     text = text.replace(
         '  - { name: Sm, version: "= 1.12.0" }',
