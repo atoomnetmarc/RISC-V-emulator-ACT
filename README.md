@@ -45,6 +45,16 @@ PYTHONPATH=client python -m actwork --server http://127.0.0.1:8000 \
   --run './binaries/gcc/{env} {binary}'
 ```
 
+The compiler of the DUT binaries is part of the `--run` template, not of this repository. Build the emulator with another compiler in the emulator repo (`python3 cmake/run-matrix.py clang` writes `binaries/clang/`) and point the template at that directory under a matching tag:
+
+```bash
+PYTHONPATH=client python -m actwork --server http://127.0.0.1:8000 \
+  --ini ../RISC-V-emulator-Native/platformio_isa-extension-combination_env.ini \
+  --smoke '^rv32i$' --tag clang \
+  --load-base 0x80000000 --halt-address 0x20000000 \
+  --run '../RISC-V-emulator-Native/binaries/clang/{env} {binary}'
+```
+
 A client restart can re-post its batch without losing results; claims expire after `--lease-seconds` and the tests are re-handed out.
 
 Results are stored per `(config, tag)` pair in `work/<config>/<tag>/` (`state.json`, `summary.log`, `logs/`). The server hands out nothing new once every test in a pair has a pass/fail state, so a rerun only re-executes tests after their stored state is removed. The generated core configs under `config/cores/atoomnetmarc/` are gitignored and regenerated on demand. To start over:
