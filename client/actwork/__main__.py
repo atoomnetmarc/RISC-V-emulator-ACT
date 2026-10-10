@@ -17,9 +17,9 @@ from pathlib import Path
 from .api import ApiError, post
 from .ini import select_configs
 
-def run_dut(run_template: str, binary_path: Path, timeout: int) -> tuple:
+def run_dut(run_template: str, env_name: str, binary_path: Path, timeout: int) -> tuple:
     """Run the DUT with the claimed binary. Returns (output, exit_status)."""
-    command = run_template.format(binary=binary_path)
+    command = run_template.format(env=env_name, binary=binary_path)
     try:
         result = subprocess.run(
             command, shell=True, capture_output=True, text=True, timeout=timeout
@@ -30,7 +30,7 @@ def run_dut(run_template: str, binary_path: Path, timeout: int) -> tuple:
         return output, 124
 
 
-def process_pair(base_url: str, config: str, tag: str, run_template: str, lease: int, poll_seconds: float) -> None:
+def process_pair(base_url: str, config: str, tag: str, env_name: str, run_template: str, lease: int, poll_seconds: float) -> None:
     while True:
         try:
             response = post(base_url, "/claim", {"config": config, "tag": tag, "lease_seconds": lease}, retries=True)
@@ -48,7 +48,7 @@ def process_pair(base_url: str, config: str, tag: str, run_template: str, lease:
             fh.write(base64.b64decode(response["binary"]))
             binary_path = Path(fh.name)
         try:
-            output, exit_status = run_dut(run_template, binary_path, lease)
+            output, exit_status = run_dut(run_template, env_name, binary_path, lease)
             post(
                 base_url,
                 "/result",
@@ -70,7 +70,7 @@ def main() -> None:
     parser.add_argument("--tag", required=True, help="compiler tag (e.g. gcc, clang, avr)")
     parser.add_argument("--load-base", required=True, help="generation load base (e.g. 0x80000000)")
     parser.add_argument("--halt-address", required=True, help="generation halt address (e.g. 0x20000000)")
-    parser.add_argument("--run", required=True, help="DUT run command template with a {binary} placeholder")
+    parser.add_argument("--run", required=True, help="DUT run command template with {env} and {binary} placeholders")
     parser.add_argument("--jobs", type=int, default=1, help="concurrent workers per config")
     parser.add_argument("--lease-seconds", type=int, default=30)
     parser.add_argument("filter", nargs="?", default=".", help="regex applied after subset selection")
@@ -103,11 +103,11 @@ def main() -> None:
         )
     print(f"Posted batch: {len(configs)} configs under tag {args.tag}")
 
-    for isa, _env_name in configs:
+    for isa, env_name in configs:
         workers = [
             threading.Thread(
                 target=process_pair,
-                args=(base_url, isa, args.tag, args.run, args.lease_seconds, 2.0),
+                args=(base_url, isa, args.tag, env_name, args.run, args.lease_seconds, 2.0),
             )
             for _ in range(args.jobs)
         ]

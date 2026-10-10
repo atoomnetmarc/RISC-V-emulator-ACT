@@ -22,7 +22,7 @@ PYTHONPATH=client python -m actwork --server http://127.0.0.1:8000 \
   --ini ../RISC-V-emulator-Native/platformio_isa-extension-combination_env.ini \
   --smoke '^rv32i$' --tag gcc \
   --load-base 0x80000000 --halt-address 0x20000000 \
-  --run '../RISC-V-emulator-Native/binaries/gcc/RV32I {binary}' --jobs 4
+  --run '../RISC-V-emulator-Native/binaries/gcc/{env} {binary}' --jobs 4
 ```
 
 Watch live progress at http://127.0.0.1:8000/ and the failure report at http://127.0.0.1:8000/report.
@@ -35,17 +35,24 @@ The container runs the ACT framework and the DUT work server (`server/`, plain P
 
 # Client
 
-One client per DUT. The client reads the ini, selects the ISA strings (`--full` for every environment or `--smoke` for the `# smoke`-marked ones, then the filter regex), posts the batch with its generation settings, and iterates: claim, run on the DUT, post output. The `--run` template is any shell command with a `{binary}` placeholder, so any DUT works. The lease doubles as the run timeout: the client kills the DUT when it expires, which fails the test for lack of a verdict signature.
+One client per DUT. The client reads the ini, selects the ISA strings (`--full` for every environment or `--smoke` for the `# smoke`-marked ones, then the filter regex), posts the batch with its generation settings, and iterates: claim, run on the DUT, post output. The `--run` template is any shell command with `{env}` (the PlatformIO environment for the config, e.g. `RV32IA`) and `{binary}` placeholders, so any DUT works and each config runs against its own binary. The lease doubles as the run timeout: the client kills the DUT when it expires, which fails the test for lack of a verdict signature.
 
 ```bash
 PYTHONPATH=client python -m actwork --server http://127.0.0.1:8000 \
   --ini ../RISC-V-emulator-Native/platformio_isa-extension-combination_env.ini \
   --full '^RV32IM' --tag gcc-13 \
   --load-base 0x80000000 --halt-address 0x20000000 \
-  --run './emu {binary}' --jobs 4
+  --run './binaries/gcc/{env} {binary}' --jobs 4
 ```
 
 A client restart can re-post its batch without losing results; claims expire after `--lease-seconds` and the tests are re-handed out.
+
+Results are stored per `(config, tag)` pair in `work/<config>/<tag>/` (`state.json`, `summary.log`, `logs/`). The server hands out nothing new once every test in a pair has a pass/fail state, so a rerun only re-executes tests after their stored state is removed. The generated core configs under `config/cores/atoomnetmarc/` are gitignored and regenerated on demand. To start over:
+
+```bash
+rm -rf work/*/*/                    # stored results
+rm -rf config/cores/atoomnetmarc/*  # generated core configs
+```
 
 # Generation
 

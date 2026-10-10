@@ -274,7 +274,8 @@ def gen_yaml(out: Path, config: str, env: str, subsets: list) -> None:
     for subset in subsets:
         meta = SUBSETS[subset]
         ext_lines += [f'  - {{ name: {name}, version: "= {version}" }}' for name, version in meta["udb"]]
-        if meta["params"]:
+        # TIME_CSR_IMPLEMENTED is only defined for configs with Zicntr.
+        if meta["params"] and not (subset == "Zicond" and "Zicntr" not in subsets):
             param_blocks.append("\n".join(meta["params"]))
     text = text.replace(
         '  - { name: Sm, version: "= 1.12.0" }',
@@ -378,7 +379,7 @@ def main() -> None:
 
     out = CORES_DIR / config / args.tag
     if out.exists():
-        sys.exit(f"{out} already exists")
+        shutil.rmtree(out)
     out.mkdir(parents=True)
 
     gen_link_ld(out, settings)
