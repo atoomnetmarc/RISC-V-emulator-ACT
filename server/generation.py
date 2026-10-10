@@ -24,12 +24,14 @@ class GenerationQueue:
 
     def __init__(self) -> None:
         self.status: dict[tuple, str] = {}
+        self.error: dict[tuple, str] = {}
         self._queue: queue.Queue = queue.Queue()
         self._thread = threading.Thread(target=self._worker, daemon=True)
         self._thread.start()
 
     def submit(self, config: str, tag: str, settings: dict) -> None:
         self.status[(config, tag)] = GENERATING
+        self.error.pop((config, tag), None)
         self._queue.put((config, tag, settings))
 
     def _worker(self) -> None:
@@ -40,10 +42,12 @@ class GenerationQueue:
             try:
                 self._generate(config, tag, settings)
                 self.status[(config, tag)] = READY
+                self.error.pop((config, tag), None)
                 LOG.info("generation: %s/%s ready", config, tag)
-            except Exception:
+            except Exception as exc:
                 LOG.exception("generation: %s/%s failed", config, tag)
                 self.status[(config, tag)] = FAILED
+                self.error[(config, tag)] = str(exc)
 
     def _generate(self, config: str, tag: str, settings: dict) -> None:
         pair = pair_dir(config, tag)
@@ -79,3 +83,6 @@ class GenerationQueue:
 
     def generating(self, config: str, tag: str) -> bool:
         return self.status.get((config, tag)) == GENERATING
+
+    def get_error(self, config: str, tag: str) -> str | None:
+        return self.error.get((config, tag))

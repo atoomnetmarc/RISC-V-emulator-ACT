@@ -11,8 +11,8 @@ from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 
 from .generation import GenerationQueue
-from .report import render_report
-from .store import Store, DEFAULT_LEASE_SECONDS, pair_dir, ACT_WORK_DIR
+from .report import instruction_of, render_report
+from .store import Store, DEFAULT_LEASE_SECONDS, pair_dir, ACT_WORK_DIR, PASS, FAIL
 
 LOG = logging.getLogger(__name__)
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -103,6 +103,8 @@ class Handler(BaseHTTPRequestHandler):
             self._handle_tests(query)
         elif route == "/log":
             self._handle_log(query)
+        elif route == "/generation-log":
+            self._handle_generation_log(query)
         else:
             self.send_error(404)
 
@@ -118,8 +120,25 @@ class Handler(BaseHTTPRequestHandler):
             counts = self.store.counts(config, tag)
             if self.generation.failed(config, tag):
                 counts["generation"] = "failed"
+                error = self.generation.get_error(config, tag)
+                if error:
+                    counts["generation_error"] = error
             elif self.generation.generating(config, tag):
                 counts["generation"] = "generating"
+
+            # Per-instruction pass/fail counts
+            instr_counts = {}
+            state = self.store.read_state(config, tag)
+            for test_id, entry in state["tests"].items():
+                instr = instruction_of(test_id)
+                ic = instr_counts.setdefault(instr, {"pass": 0, "fail": 0, "total": 0})
+                ic["total"] += 1
+                if entry["state"] == PASS:
+                    ic["pass"] += 1
+                elif entry["state"] == FAIL:
+                    ic["fail"] += 1
+            counts["instructions"] = instr_counts
+
             pairs[f"{config}/{tag}"] = counts
         self._send_json(200, {"pairs": pairs})
 
@@ -144,6 +163,19 @@ class Handler(BaseHTTPRequestHandler):
             self.send_error(404)
             return
         self._send_text(200, text)
+
+    def _handle_generation_log(self, query: dict) -> None:
+        config = query.get("config", [""])[0]
+        tag = query.get("tag", [""])[0]
+        if not config or not tag:
+            self._send_json(400, {"error": "config and tag are required"})
+            return
+        pair = pair_dir(config, tag)
+        log_path = pair / "generation.log"
+        if not log_path.exists():
+            self.send_error(404)
+            return
+        self._send_text(200, log_path.read_text(errors="replace"))
 
     def _known_pairs(self) -> list:
         pairs = list(self.generation.status.keys())
