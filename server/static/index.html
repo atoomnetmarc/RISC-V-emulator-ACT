@@ -20,9 +20,8 @@ function esc(s) {
 function countsHtml(c) {
   const counts = ['pending', 'claimed', 'pass', 'fail']
     .map(k => `<span class="${k}">${k}: ${c[k] || 0}</span>`).join(' ');
-  const gen = c.generation
-    ? ` <span class="${c.generation === 'failed' ? 'generating-failed' : 'muted'}">generation: ${c.generation}</span>`
-    : '';
+  if (!c.generation) return counts;
+  const gen = ` <span class="${c.generation === 'failed' ? 'generating-failed' : 'muted'}">generation: ${c.generation}</span>`;
   return counts + gen;
 }
 
@@ -45,12 +44,23 @@ async function refresh() {
       card = document.createElement('div');
       card.className = 'card';
       card.dataset.name = name;
-      card.innerHTML = `<h2 class="pair-toggle" onclick="toggle('${esc(name)}')">${esc(name)}</h2>`
+      // The generation log button and error text live outside .counts so the
+      // poll never replaces them mid-click.
+      card.innerHTML = `<h2 class="pair-toggle" data-pair="${esc(name)}">${esc(name)}</h2>`
         + `<div class="counts"></div>`
+        + `<span class="generror generating-failed" hidden></span>`
+        + ` <button class="genlog-btn" data-genlog="${esc(name)}" hidden>generation log</button>`
+        + `<pre class="logview genlogview" hidden></pre>`
         + `<div class="tests" id="tests-${cssId(name)}"></div>`;
       container.appendChild(card);
     }
-    card.querySelector('.counts').innerHTML = counts;
+    const countsEl = card.querySelector('.counts');
+    if (countsEl.innerHTML !== counts) countsEl.innerHTML = counts;
+    const pair = data.pairs[name];
+    const failed = pair.generation === 'failed';
+    card.querySelector('.generror').hidden = !(failed && pair.generation_error);
+    card.querySelector('.generror').textContent = pair.generation_error || '';
+    card.querySelector('.genlog-btn').hidden = !failed;
     if (expanded.has(name)) updateTests(name);
   }
   for (const card of container.querySelectorAll('.card[data-name]')) {
@@ -102,7 +112,7 @@ async function loadTests(name, force) {
 function testRow(name, id, state) {
   return `<div class="test ${state}" data-test-id="${esc(id)}">`
     + `<span class="test-id">${esc(id)}</span><span class="test-state">${esc(state)}</span>`
-    + `<button onclick="toggleLog('${esc(name)}','${esc(id)}')">log</button>`
+    + `<button data-testlog="${esc(name)}" data-test-id="${esc(id)}">log</button>`
     + `<pre class="logview" hidden></pre>`
     + `</div>`;
 }
@@ -127,6 +137,19 @@ async function updateTests(name) {
   }
 }
 
+async function toggleGenLog(name) {
+  const card = document.querySelector(`.card[data-name="${CSS.escape(name)}"]`);
+  const pre = card.querySelector('.genlogview');
+  if (pre.dataset.loading) return;
+  if (!pre.hidden) { pre.hidden = true; return; }
+  pre.dataset.loading = '1';
+  const [config, tag] = name.split('/');
+  const response = await fetch(`/generation-log?config=${encodeURIComponent(config)}&tag=${encodeURIComponent(tag)}`);
+  pre.textContent = response.ok ? await response.text() : 'No generation log available.';
+  delete pre.dataset.loading;
+  pre.hidden = false;
+}
+
 async function toggleLog(name, testId) {
   const row = document.querySelector(`.card[data-name="${CSS.escape(name)}"] .test[data-test-id="${CSS.escape(testId)}"]`);
   const pre = row.querySelector('.logview');
@@ -136,6 +159,15 @@ async function toggleLog(name, testId) {
   pre.textContent = response.ok ? await response.text() : 'No log available yet.';
   pre.hidden = false;
 }
+
+// One delegated listener: buttons survive the 2-second poll rebuilding the DOM.
+document.getElementById('pairs').addEventListener('click', (event) => {
+  const target = event.target.closest('button[data-genlog], button[data-testlog], .pair-toggle[data-pair]');
+  if (!target) return;
+  if (target.dataset.genlog) toggleGenLog(target.dataset.genlog);
+  else if (target.dataset.testlog) toggleLog(target.dataset.testlog, target.dataset.testId);
+  else toggle(target.dataset.pair);
+});
 
 refresh();
 setInterval(refresh, 2000);
