@@ -60,8 +60,8 @@ JOBS ?= $(shell nproc)
 # pair layout work/<CONFIG>/<TAG>/elfs that the work server serves from.
 elfs:
 	@test -n "$(UDB_BIN)" || { echo "UDB gems not found under $(ACT_DIR)/framework/src/act/data/vendor/bundle/ruby/*/bin - run in the container or install UDB gems"; exit 1; }
-	@cd "$(ACT_DIR)" && COLUMNS=250 PATH="$(SAIL_BIN):$(UDB_BIN):$$PATH" BUNDLE_GEMFILE="$(UDB_GEMFILE)" RUBYOPT="-rbundler/setup" make -j"$(JOBS)" elfs WORKDIR="$(ACT_DIR)/work/$(CONFIG)" CONFIG_FILES="$(CONFIG_FILE)" $(if $(EXCLUDE_EXTENSIONS),EXCLUDE_EXTENSIONS="$(EXCLUDE_EXTENSIONS)",)
+	@cd "$(ACT_DIR)" && COLUMNS=250 PATH="$(SAIL_BIN):$(UDB_BIN):$$PATH" BUNDLE_GEMFILE="$(UDB_GEMFILE)" RUBYOPT="-rbundler/setup" XDG_DATA_HOME="$(ACT_DIR)/work/udb-xdg/$(CONFIG)/data" make -j"$(JOBS)" elfs WORKDIR="$(ACT_DIR)/work/$(CONFIG)" CONFIG_FILES="$(CONFIG_FILE)" $(if $(EXCLUDE_EXTENSIONS),EXCLUDE_EXTENSIONS="$(EXCLUDE_EXTENSIONS)",)
 
 clean:
 	@cd "$(ACT_DIR)" && make clean || true
-	@rm -rf "$(CONFIG_DIR)" "$(ACT_DIR)/work/$(CONFIG)"
+	@rm -rf "$(CONFIG_DIR)" "$(ACT_DIR)/work/$(CONFIG)" "$(ACT_DIR)/work/udb-xdg/$(CONFIG)"
