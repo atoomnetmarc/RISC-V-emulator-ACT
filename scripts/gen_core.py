@@ -48,14 +48,13 @@ OPTIONAL_SETTINGS_KEYS = ("firmware_env",)
 
 # Per-subset metadata. "udb" entries land in implemented_extensions of the
 # architecture configuration, "sail" keys are flipped to supported in
-# sail.json, "params" are appended to the yaml params section, "header" defines
-# are appended to rvtest_config.h.
+# sail.json, "params" are appended to the yaml params section. The framework
+# derives the rvtest_config.h defines from the architecture configuration.
 SUBSETS = {
     "M": {
         "udb": [("M", "2.0")],
         "sail": ["M"],
         "params": ["  # M params", "  MUTABLE_MISA_M: false"],
-        "header": [],
     },
     "A": {
         "udb": [("A", "2.1.0"), ("Zaamo", "1.0.0"), ("Zalrsc", "1.0.0")],
@@ -69,13 +68,11 @@ SUBSETS = {
             "  LRSC_FAIL_ON_NON_EXACT_LRSC: false",
             "  MUTABLE_MISA_A: false",
         ],
-        "header": ["ZAAMO_SUPPORTED", "ZALRSC_SUPPORTED"],
     },
     "C": {
         "udb": [("C", "2.0"), ("Zca", "1.0.0")],
         "sail": ["Zca"],
         "params": ["  # C params", "  MUTABLE_MISA_C: false"],
-        "header": ["ZCA_SUPPORTED"],
     },
     "B": {
         "udb": [
@@ -87,7 +84,6 @@ SUBSETS = {
         ],
         "sail": ["B", "Zba", "Zbb", "Zbc", "Zbs"],
         "params": ["  # B params", "  MUTABLE_MISA_B: true"],
-        "header": ["ZBA_SUPPORTED", "ZBB_SUPPORTED", "ZBC_SUPPORTED", "ZBS_SUPPORTED"],
     },
     # The standalone Zaamo/Zalrsc subsets carry no MUTABLE_MISA_A param: UDB
     # only allows that parameter when the A extension itself is implemented.
@@ -95,7 +91,6 @@ SUBSETS = {
         "udb": [("Zaamo", "1.0.0")],
         "sail": ["Zaamo"],
         "params": ["  # Zaamo params", "  MISALIGNED_AMO: false"],
-        "header": ["ZAAMO_SUPPORTED"],
     },
     "Zalrsc": {
         "udb": [("Zalrsc", "1.0.0")],
@@ -107,101 +102,85 @@ SUBSETS = {
             '  LRSC_MISALIGNED_BEHAVIOR: "always raise access fault"',
             "  LRSC_FAIL_ON_NON_EXACT_LRSC: false",
         ],
-        "header": ["ZALRSC_SUPPORTED"],
     },
     "Zmmul": {
         "udb": [("Zmmul", "1.0.0")],
         "sail": ["Zmmul"],
         "params": [],
-        "header": [],
     },
-    "Zicsr": {"udb": [("Zicsr", "2.0")], "sail": [], "params": [], "header": []},
-    "Zifencei": {"udb": [("Zifencei", "2.0.0")], "sail": [], "params": [], "header": []},
+    "Zicsr": {"udb": [("Zicsr", "2.0")], "sail": [], "params": []},
+    "Zifencei": {"udb": [("Zifencei", "2.0.0")], "sail": [], "params": []},
     # The standalone Zb* subsets carry no MUTABLE_MISA_B param: UDB only
     # allows that parameter when the B extension itself is implemented.
     "Zba": {
         "udb": [("Zba", "1.0.0")],
         "sail": ["Zba"],
         "params": [],
-        "header": ["ZBA_SUPPORTED"],
     },
     "Zbb": {
         "udb": [("Zbb", "1.0.0")],
         "sail": ["Zbb"],
         "params": [],
-        "header": ["ZBB_SUPPORTED"],
     },
     "Zbc": {
         "udb": [("Zbc", "1.0.0")],
         "sail": ["Zbc"],
         "params": [],
-        "header": ["ZBC_SUPPORTED"],
     },
     "Zbkc": {
         "udb": [("Zbkc", "1.0.0")],
         "sail": ["Zbkc"],
         "params": [],
-        "header": ["ZBKC_SUPPORTED"],
     },
     "Zbkb": {
         "udb": [("Zbkb", "1.0.0")],
         "sail": ["Zbkb"],
         "params": [],
-        "header": ["ZBKB_SUPPORTED"],
     },
     "Zbkx": {
         "udb": [("Zbkx", "1.0.0")],
         "sail": ["Zbkx"],
         "params": [],
-        "header": ["ZBKX_SUPPORTED"],
     },
     "Zcb": {
         "udb": [("Zcb", "1.0.0"), ("Zca", "1.0.0")],
         "sail": ["Zcb"],
         "params": [],
-        "header": ["ZCB_SUPPORTED"],
     },
     "Zcmop": {
         "udb": [("Zcmop", "1.0.0"), ("Zca", "1.0.0")],
         "sail": ["Zcmop"],
         "params": [],
-        "header": [],
     },
     "Zimop": {
         "udb": [("Zimop", "1.0.0")],
         "sail": ["Zimop"],
         "params": [],
-        "header": [],
     },
     "Zicond": {
         "udb": [("Zicond", "1.0.0")],
         "sail": ["Zicond"],
         "params": [],
-        "header": ["ZICOND_SUPPORTED"],
     },
     "Zicntr": {
         "udb": [("Zicntr", "2.0.0")],
         "sail": ["Zicntr"],
         "params": ["  # Zicntr params", "  TIME_CSR_IMPLEMENTED: true"],
-        "header": [],
     },
     "Zihintntl": {
         "udb": [("Zihintntl", "1.0.0")],
         "sail": ["Zihintntl"],
         "params": [],
-        "header": [],
     },
     "Zihintpause": {
         "udb": [("Zihintpause", "2.0.0")],
         "sail": ["Zihintpause"],
         "params": [],
-        "header": [],
     },
     "Zbs": {
         "udb": [("Zbs", "1.0.0")],
         "sail": ["Zbs"],
         "params": [],
-        "header": ["ZBS_SUPPORTED"],
     },
     # Not an ISA extension: the emulator is built with RVE_E_MISALIGNED=1.
     # The base template already enables misaligned load/store support, so this
@@ -210,7 +189,6 @@ SUBSETS = {
         "udb": [],
         "sail": [],
         "params": [],
-        "header": [],
     },
 }
 
@@ -277,8 +255,8 @@ def gen_yaml(out: Path, config: str, env: str, subsets: list) -> None:
         if meta["params"]:
             param_blocks.append("\n".join(meta["params"]))
     text = text.replace(
-        '  - { name: Sm, version: "= 1.12.0" }',
-        '  - { name: Sm, version: "= 1.12.0" }' + ("\n" + "\n".join(ext_lines) if ext_lines else ""),
+        '  - { name: Sm, version: "= 1.13.0" }',
+        '  - { name: Sm, version: "= 1.13.0" }' + ("\n" + "\n".join(ext_lines) if ext_lines else ""),
     )
     if param_blocks:
         text = text.replace(
@@ -297,14 +275,6 @@ def gen_sail(out: Path, subsets: list) -> None:
             if count == 0 and not re.search(rf'"{key}": \{{\s*"supported": true', text):
                 sys.exit(f"sail.json template: expected one entry for {key!r}")
     (out / "sail.json").write_text(text)
-
-
-def gen_header(out: Path, subsets: list) -> None:
-    text = (TEMPLATE_DIR / "rvtest_config.h").read_text().rstrip("\n")
-    defines = [d for subset in subsets for d in SUBSETS[subset]["header"]]
-    if defines:
-        text += "\n\n" + "\n".join(f"#define {d}" for d in defines)
-    (out / "rvtest_config.h").write_text(text + "\n")
 
 
 def gen_config_mk(out: Path, env: str, excludes: list) -> None:
@@ -371,6 +341,10 @@ def main() -> None:
         subsets = subsets_from_env(env)
     else:
         subsets = subsets_from_env(config)
+    # UDB 0.1.16 declares that M 2.0.0 requires Zmmul. The emulator implements
+    # full M, so Zmmul is implied whenever M is implemented.
+    if "M" in subsets and "Zmmul" not in subsets:
+        subsets.append("Zmmul")
     try:
         excludes = parse_ini_env(env_name_from_config(config))
     except SystemExit:
@@ -385,7 +359,6 @@ def main() -> None:
     gen_rvmodel_macros(out, settings)
     gen_yaml(out, config, env, subsets)
     gen_sail(out, subsets)
-    gen_header(out, subsets)
     gen_config_mk(out, env, excludes)
     gen_test_config(out, args.tag, config)
     print(f"Generated {out}")

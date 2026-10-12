@@ -35,7 +35,7 @@ The container runs the ACT framework and the DUT work server (`server/`, plain P
 
 # Client
 
-One client per DUT. The client reads the ini, selects the ISA strings (`--full` for every environment or `--smoke` for the `# smoke`-marked ones, then the filter regex), posts the batch with its generation settings, and iterates: claim, run on the DUT, post output. The `--run` template is any shell command with `{env}` (the PlatformIO environment for the config, e.g. `RV32IA`) and `{binary}` placeholders, so any DUT works and each config runs against its own binary. The lease doubles as the run timeout: the client kills the DUT when it expires, which fails the test for lack of a verdict signature.
+One client per DUT. The client reads the ini, selects the ISA strings (`--full` for every environment or `--smoke` for the `# smoke`-marked ones, then the filter regex), posts the batch with its generation settings, and iterates: claim, run on the DUT, post output. The `--run` template is any shell command with `{env}` (the PlatformIO environment for the config, e.g. `RV32IA`) and `{binary}` placeholders, so any DUT works and each config runs against its own binary. The ELFs are self-checking: the test compares its results against the reference signature on the DUT and prints `RVCP-SUMMARY: TEST PASSED` or `TEST FAILED` on the console, which the server parses as the verdict. The lease doubles as the run timeout: the client kills the DUT when it expires, which fails the test for lack of a verdict.
 
 ```bash
 PYTHONPATH=client python -m actwork --server http://127.0.0.1:8000 \

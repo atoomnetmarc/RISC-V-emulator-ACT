@@ -14,6 +14,10 @@
 # initializing custom state.
 //#define RVMODEL_BOOT
 
+# The DUT has no privilege modes. An empty RVMODEL_BOOT_TO_MMODE skips the
+# framework's default M-mode boot, which writes M-mode CSRs at startup.
+#define RVMODEL_BOOT_TO_MMODE
+
 # Address to use for load/store fault tests that should cause an access fault on the DUT.
 // This DUT does not generate access faults.  Comment out RVMODEL_ACCESS_FAULT_ADDRESS to prevent testing them.
 //#define RVMODEL_ACCESS_FAULT_ADDRESS 0x00000000
@@ -72,6 +76,8 @@
 ##### Machine Timer #####
 
 #define RVMODEL_TIMER_INT_SOON_DELAY 100
+
+#define RVMODEL_MAX_CYCLES_PER_TIMER_TICK 5000
 
 #define RVMODEL_MTIME_ADDRESS  /* unimplemented */
 
