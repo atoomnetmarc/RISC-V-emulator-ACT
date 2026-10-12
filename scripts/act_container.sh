@@ -50,6 +50,7 @@ fi
 # Without arguments: start the DUT work server and publish it on the host.
 if [[ $# -eq 0 ]]; then
   exec podman run --rm \
+    --pids-limit=0 \
     -v "${ACT_REPO}:/act" \
     -v "${EMULATOR_REPO}:/emulator" \
     -v "${ACT_REPO}/work:/opt/riscv-arch-test/work" \
@@ -71,7 +72,7 @@ if [[ -t 0 ]]; then
   TTY_FLAG=(-it)
 fi
 
-CMD=(podman run --rm "${TTY_FLAG[@]}"
+CMD=(podman run --rm --pids-limit=0 "${TTY_FLAG[@]}"
   -v "${ACT_REPO}:/act"
   -v "${EMULATOR_REPO}:/emulator"
   -v "${ACT_REPO}/work:/opt/riscv-arch-test/work"
