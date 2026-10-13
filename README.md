@@ -57,11 +57,13 @@ PYTHONPATH=client python -m actwork --server http://127.0.0.1:8000 \
 
 A client restart can re-post its batch without losing results; claims expire after `--lease-seconds` and the tests are re-handed out.
 
-Results are stored per `(config, tag)` pair in `work/<config>/<tag>/` (`state.json`, `summary.log`, `logs/`). The server hands out nothing new once every test in a pair has a pass/fail state, so a rerun only re-executes tests after their stored state is removed. The generated core configs under `config/cores/atoomnetmarc/` are gitignored and regenerated on demand. To start over:
+Results are stored per `(config, tag)` pair in `work/<config>/<tag>/` (`state.json`, `summary.log`, `logs/`). The server hands out nothing new once every test in a pair has a pass/fail state, so a rerun only re-executes tests after their stored state is removed. The generated core configs under `config/cores/atoomnetmarc/` are gitignored and regenerated on demand. `make reset-results` removes the stored results but keeps the built ELFs, so a rerun skips generation and the ELF build; `make reset-failed` keeps the passes and only re-executes the failed tests. Run both while the server and clients are idle. To start over:
 
 ```bash
-rm -rf work/*/*/                    # stored results
-rm -rf config/cores/atoomnetmarc/*  # generated core configs
+make reset-failed                     # only failed tests re-run, passes kept
+make reset-results                    # all tests re-run, ELFs and core configs kept
+make clean CONFIG=<config> TAG=<tag>  # one pair: framework build + core config
+make clean-all                        # every pair: framework builds + core configs + results
 ```
 
 # Generation

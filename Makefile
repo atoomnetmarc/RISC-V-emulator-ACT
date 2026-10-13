@@ -19,7 +19,7 @@ SETTINGS ?= $(CURDIR)/work/settings.json
 CONFIG_DIR := config/cores/atoomnetmarc/$(CONFIG)/$(TAG)
 
 # Targets that do not need a core configuration.
-ifeq ($(filter clean,$(MAKECMDGOALS)),)
+ifeq ($(filter clean clean-all reset-results reset-failed,$(MAKECMDGOALS)),)
 
 # Core configurations are generated on demand from the bare ISA string
 # (e.g. CONFIG=rv32imacb_zicsr_zifencei). The generator maps the name to a
@@ -50,7 +50,7 @@ UDB_GEMFILE := $(ACT_DIR)/framework/src/act/data/Gemfile
 # RAM, so keep this modest to avoid exhausting memory on large test suites.
 JOBS ?= $(shell nproc)
 
-.PHONY: elfs clean
+.PHONY: elfs clean clean-all reset-results reset-failed
 
 # COLUMNS is forced wide because the udb progress bar crashes with
 # "negative argument" when the rendered config name does not fit the
@@ -65,3 +65,34 @@ elfs:
 clean:
 	@cd "$(ACT_DIR)" && make clean || true
 	@rm -rf "$(CONFIG_DIR)" "$(ACT_DIR)/work/$(CONFIG)" "$(ACT_DIR)/work/udb-xdg/$(CONFIG)"
+
+# Stored results live in work/<CONFIG>/<TAG>/ next to the built ELFs. Removing
+# the state makes the server re-register every ELF as pending, so a rerun
+# skips generation and the ELF build. Run while the server and clients are
+# idle: the state files are guarded by flock.
+reset-results:
+	@rm -f work/*/*/state.json work/*/*/summary.log work/*/*/state.lock
+	@rm -rf work/*/*/logs
+
+# Reset only the failed tests; passes are kept and not re-executed.
+reset-failed:
+	@for s in work/*/*/state.json; do \
+		[ -e "$$s" ] || continue; \
+		jq '.tests |= with_entries(select(.value.state != "fail"))' "$$s" > "$$s.tmp" && mv "$$s.tmp" "$$s"; \
+	done
+	@rm -f work/*/*/summary.log
+	@rm -rf work/*/*/logs
+
+# Full reset of every (config, tag) pair: framework build, generated core
+# configs, and stored results. Recurses into clean for each pair found under
+# config/cores/atoomnetmarc/.
+clean-all: reset-results
+	@for cfg in config/cores/atoomnetmarc/*/; do \
+		[ -e "$$cfg" ] || continue; \
+		config=$$(basename "$$cfg"); \
+		for tagdir in "$$cfg"*/; do \
+			[ -e "$$tagdir" ] || continue; \
+			$(MAKE) clean CONFIG=$$config TAG=$$(basename "$$tagdir") --no-print-directory; \
+		done; \
+	done
+	@rm -rf config/cores/atoomnetmarc/*
