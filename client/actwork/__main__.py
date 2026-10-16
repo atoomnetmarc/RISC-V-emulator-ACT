@@ -23,7 +23,12 @@ def run_dut(run_template: str, env_name: str, binary_path: Path, timeout: int) -
     command = run_template.format(env=env_name, binary=binary_path)
     try:
         result = subprocess.run(
-            command, shell=True, capture_output=True, text=True, timeout=timeout
+            command,
+            shell=True,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            stdin=subprocess.DEVNULL,
         )
         return result.stdout + result.stderr, result.returncode
     except subprocess.TimeoutExpired as exc:
