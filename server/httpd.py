@@ -40,8 +40,6 @@ def validate_settings(settings: dict) -> str | None:
 class Handler(BaseHTTPRequestHandler):
     store = Store()
     generation = GenerationQueue()
-    # settings per tag, for last-write-wins invalidation
-    tag_settings: dict = {}
 
     def log_message(self, format, *args):  # noqa: A002 - stdlib signature
         pass
@@ -179,16 +177,16 @@ class Handler(BaseHTTPRequestHandler):
         self._send_text(200, log_path.read_text(errors="replace"))
 
     def _known_pairs(self) -> list:
-        pairs = list(self.generation.status.keys())
+        pairs = []
         if ACT_WORK_DIR.is_dir():
             for config_dir in sorted(ACT_WORK_DIR.iterdir()):
-                if not config_dir.is_dir():
+                if not config_dir.is_dir() or config_dir.name.startswith("."):
                     continue
                 for tag_dir in sorted(config_dir.iterdir()):
-                    if tag_dir.is_dir() and (tag_dir / "state.json").exists():
-                        pair = (config_dir.name, tag_dir.name)
-                        if pair not in pairs:
-                            pairs.append(pair)
+                    if not tag_dir.is_dir():
+                        continue
+                    if (tag_dir / "state.json").exists() or (tag_dir / "generation.json").exists():
+                        pairs.append((config_dir.name, tag_dir.name))
         return pairs
 
     def do_POST(self):  # noqa: N802 - stdlib signature
@@ -225,27 +223,27 @@ class Handler(BaseHTTPRequestHandler):
                 return
         for entry in configs:
             config, tag = entry["config"], entry["tag"]
-            if (config, tag) in self.generation.status:
-                # Known pair: idempotent merge. Different settings under the
-                # same tag invalidate the generated binaries.
-                if self.tag_settings.get(tag) != settings:
+            if self.store.read_generation(config, tag) is not None:
+                # Known pair: idempotent merge. Different settings invalidate
+                # the generated binaries.
+                if self.store.read_settings(config, tag) != settings:
                     LOG.info("batch: settings changed for %s/%s, invalidating pair", config, tag)
                     self._invalidate(config, tag)
-                    self.tag_settings[tag] = settings
                     self.generation.submit(config, tag, settings)
                 else:
                     LOG.info("batch: %s/%s already known with same settings, merge is a no-op", config, tag)
                 continue
             LOG.info("batch: new pair %s/%s, submitting generation with settings %s", config, tag, settings)
-            self.tag_settings[tag] = settings
             self.generation.submit(config, tag, settings)
         self._send_json(200, {"accepted": True})
 
     def _invalidate(self, config: str, tag: str) -> None:
         import shutil
 
-        shutil.rmtree(pair_dir(config, tag), ignore_errors=True)
-        shutil.rmtree(Path(__file__).resolve().parent.parent / "config" / "cores" / "atoomnetmarc" / config / tag, ignore_errors=True)
+        with self.store.config_lock(config):
+            with self.store.lock(config, tag):
+                shutil.rmtree(pair_dir(config, tag), ignore_errors=True)
+                shutil.rmtree(Path(__file__).resolve().parent.parent / "config" / "cores" / "atoomnetmarc" / config / tag, ignore_errors=True)
 
     def _handle_claim(self, payload: dict) -> None:
         config, tag = payload["config"], payload["tag"]

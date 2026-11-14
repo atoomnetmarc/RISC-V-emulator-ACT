@@ -1,6 +1,7 @@
 .vscode
 .venv
 work
+.locks
 client/act-work-client
 client/act_work_client.egg-info/
 

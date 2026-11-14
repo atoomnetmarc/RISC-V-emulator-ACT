@@ -57,7 +57,7 @@ PYTHONPATH=client python -m actwork --server http://127.0.0.1:8000 \
 
 A client restart can re-post its batch without losing results; claims expire after `--lease-seconds` and the tests are re-handed out.
 
-Results are stored per `(config, tag)` pair in `work/<config>/<tag>/` (`state.json`, `summary.log`, `logs/`). The server hands out nothing new once every test in a pair has a pass/fail state, so a rerun only re-executes tests after their stored state is removed. The generated core configs under `config/cores/atoomnetmarc/` are gitignored and regenerated on demand. `make reset-results` removes the stored results but keeps the built ELFs, so a rerun skips generation and the ELF build; `make reset-failed` keeps the passes and only re-executes the failed tests. Run both while the server and clients are idle. To start over:
+Results are stored per `(config, tag)` pair in `work/<config>/<tag>/` (`state.json`, `generation.json`, `summary.log`, `logs/`). The server hands out nothing new once every test in a pair has a pass/fail state, so a rerun only re-executes tests after their stored state is removed. The generated core configs under `config/cores/atoomnetmarc/` are gitignored and regenerated on demand. The reset targets take the same per-config and per-pair locks as the server, so they also work while the server and clients run; a target waits up to `RESET_TIMEOUT` seconds (default 60) for a running generation or claim and then fails. `make reset-results` removes the stored results but keeps the built ELFs, so a rerun skips generation and the ELF build; `make reset-failed` keeps the passes and only re-executes the failed tests. To start over:
 
 ```bash
 make reset-failed                     # only failed tests re-run, passes kept
@@ -70,7 +70,7 @@ make clean-all                        # every pair: framework builds + core conf
 
 The first generation for a `(config, tag)` pair runs `scripts/gen_core.py` (inside the container) with the posted settings, which writes `config/cores/atoomnetmarc/<config>/<tag>/` from the templates in `config/cores/template/`. A config name is the bare ISA string and maps to a PlatformIO environment in `../RISC-V-emulator-Native/platformio_isa-extension-combination_env.ini` (`rv32imacb_zicsr_zifencei` maps to env `RV32IMACBZicsr_Zifencei`). The generated directory is gitignored; `make clean CONFIG=<config>` removes it. Per-core metadata (such as excluded ACT extensions) travels from the emulator's ini generator as `# act-` comment lines in the env block.
 
-Raw output, `summary.log`, and the per-pair state file land under `work/src/riscv-arch-test/work/<config>/<tag>/`. Remove the ACT build outputs (including the framework's `work/` directory) and the generated core configs with `scripts/act_container.sh make clean CONFIG=<config>`.
+Raw output, `summary.log`, and the per-pair state file land under `work/<config>/<tag>/`. Remove the ACT build outputs (including the framework's `work/` directory) and the generated core configs with `scripts/act_container.sh make clean CONFIG=<config>`.
 
 # AVR backend (simavr)
 
