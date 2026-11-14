@@ -63,8 +63,8 @@ elfs:
 	@cd "$(ACT_DIR)" && COLUMNS=250 PATH="$(SAIL_BIN):$(UDB_BIN):$$PATH" BUNDLE_GEMFILE="$(UDB_GEMFILE)" RUBYOPT="-rbundler/setup" XDG_DATA_HOME="$(ACT_DIR)/work/udb-xdg/$(CONFIG)/data" make -j"$(JOBS)" elfs WORKDIR="$(ACT_DIR)/work/$(CONFIG)" CONFIG_FILES="$(CONFIG_FILE)" $(if $(EXCLUDE_EXTENSIONS),EXCLUDE_EXTENSIONS="$(EXCLUDE_EXTENSIONS)",)
 
 clean:
-	@cd "$(ACT_DIR)" && make clean || true
-	@rm -rf "$(CONFIG_DIR)" "$(ACT_DIR)/work/$(CONFIG)" "$(ACT_DIR)/work/udb-xdg/$(CONFIG)"
+	@if [ -d "$(ACT_DIR)" ]; then cd "$(ACT_DIR)" && make clean || true; fi
+	@rm -rf "$(CONFIG_DIR)" "$(CURDIR)/work/$(CONFIG)" "$(CURDIR)/work/udb-xdg/$(CONFIG)" "$(ACT_DIR)/work/$(CONFIG)" "$(ACT_DIR)/work/udb-xdg/$(CONFIG)"
 
 # Stored results live in work/<CONFIG>/<TAG>/ next to the built ELFs. Removing
 # the state makes the server re-register every ELF as pending, so a rerun

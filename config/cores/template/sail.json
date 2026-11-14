@@ -39,7 +39,7 @@
     "medeleg": {
       "delegatable_bits": {
         "len": 64,
-        "value": "0x0000_0000_000c_b3FE"
+        "value": "0x0000_0000_000c_b3FF"
       }
     },
     "mideleg": {
@@ -82,8 +82,8 @@
     "physaddr_bits": 34,
     "pmp": {
       "grain": 0,
-      "count": 16,
-      "usable_count": 16,
+      "count": 0,
+      "usable_count": 0,
       "tor_supported": true,
       "na4_supported": true,
       "napot_supported": true

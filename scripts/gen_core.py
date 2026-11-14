@@ -110,6 +110,54 @@ SUBSETS = {
     },
     "Zicsr": {"udb": [("Zicsr", "2.0")], "sail": [], "params": []},
     "Zifencei": {"udb": [("Zifencei", "2.0.0")], "sail": [], "params": []},
+    # Sv32 implies S-mode and Zicsr. The emulator implements Svade (a page
+    # fault when A is clear, or when a store finds D clear) and Sstvala
+    # (stval holds the faulting virtual address).
+    "Sv32": {
+        "udb": [
+            ("U", "1.0.0"),
+            ("S", "1.13.0"),
+            ("Sv32", "1.0"),
+            ("Svade", "1.0.0"),
+            ("Sstvala", "1.0.0"),
+        ],
+        "sail": ["S", "Sv32", "Svade", "Sstvala"],
+        "params": [
+            "  # S params",
+            "  SXLEN: [32]",
+            "  UXLEN: [32]",
+            "  STVEC_MODES: [0, 1]",
+            "  STVEC_BASE_ALIGNMENT_VECTORED: 0x4",
+            "  SATP_MODE_BARE: true",
+            "  ASID_WIDTH: 0",
+            "  STVAL_WIDTH: 32",
+            "  S_MODE_ENDIANNESS: little",
+            "  U_MODE_ENDIANNESS: little",
+            "  MUTABLE_MISA_S: false",
+            "  MUTABLE_MISA_U: false",
+            "  TRAP_ON_ECALL_FROM_S: true",
+            "  TRAP_ON_ECALL_FROM_U: true",
+            "  MSTATUS_FS_LEGAL_VALUES: [0]",
+            "  MSTATUS_VS_LEGAL_VALUES: [0]",
+            "  SCOUNTENABLE_EN: [false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false]",
+            "  # Sstvala params",
+            "  REPORT_VA_IN_STVAL_ON_BREAKPOINT: true",
+            "  REPORT_VA_IN_STVAL_ON_INSTRUCTION_ACCESS_FAULT: true",
+            "  REPORT_VA_IN_STVAL_ON_LOAD_ACCESS_FAULT: true",
+            "  REPORT_VA_IN_STVAL_ON_STORE_AMO_ACCESS_FAULT: true",
+            "  REPORT_VA_IN_STVAL_ON_INSTRUCTION_PAGE_FAULT: true",
+            "  REPORT_VA_IN_STVAL_ON_LOAD_PAGE_FAULT: true",
+            "  REPORT_VA_IN_STVAL_ON_STORE_AMO_PAGE_FAULT: true",
+            "  REPORT_VA_IN_STVAL_ON_INSTRUCTION_MISALIGNED: true",
+            "  REPORT_VA_IN_STVAL_ON_LOAD_MISALIGNED: true",
+            "  REPORT_VA_IN_STVAL_ON_STORE_AMO_MISALIGNED: true",
+            "  REPORT_ENCODING_IN_STVAL_ON_ILLEGAL_INSTRUCTION: true",
+            "  # mtval page-fault reporting",
+            "  REPORT_VA_IN_MTVAL_ON_INSTRUCTION_PAGE_FAULT: true",
+            "  REPORT_VA_IN_MTVAL_ON_LOAD_PAGE_FAULT: true",
+            "  REPORT_VA_IN_MTVAL_ON_STORE_AMO_PAGE_FAULT: true",
+        ],
+    },
     # The standalone Zb* subsets carry no MUTABLE_MISA_B param: UDB only
     # allows that parameter when the B extension itself is implemented.
     "Zba": {
@@ -286,12 +334,14 @@ def gen_config_mk(out: Path, env: str, excludes: list) -> None:
     (out / "config.mk").write_text("".join(lines))
 
 
-def gen_test_config(out: Path, tag: str, config: str) -> None:
+def gen_test_config(out: Path, tag: str, config: str, subsets: list) -> None:
     text = (TEMPLATE_DIR / "test_config.yaml").read_text()
     # The framework puts the elfs in $(WORKDIR)/<name>/elfs; name the suite
     # after the tag so they land in work/<CONFIG>/<TAG>/elfs.
     text = text.replace("name: rve-rv32i", f"name: {tag}")
     text = text.replace("udb_config: rve-rv32i.yaml", f"udb_config: {config}.yaml")
+    if "Sv32" in subsets:
+        text = text.replace("include_priv_tests: False", "include_priv_tests: True")
     (out / "test_config.yaml").write_text(text)
 
 
@@ -301,9 +351,29 @@ def gen_link_ld(out: Path, settings: dict) -> None:
     (out / "link.ld").write_text(text)
 
 
-def gen_rvmodel_macros(out: Path, settings: dict) -> None:
+def gen_rvmodel_macros(out: Path, settings: dict, subsets: list) -> None:
     text = (TEMPLATE_DIR / "rvmodel_macros.h").read_text()
     text = text.replace("{{HALT_ADDRESS}}", settings["halt_address"])
+    if "Sv32" in subsets:
+        # The DUT has standard M-mode. The framework's default M-mode boot sets
+        # up the trap handlers, and STANDARD_SM_SUPPORTED also emits the
+        # rvtest_set_*_int entry points that the privileged tests call.
+        text = text.replace(
+            "# The DUT has no privilege modes. An empty RVMODEL_BOOT_TO_MMODE skips the\n"
+            "# framework's default M-mode boot, which writes M-mode CSRs at startup.\n"
+            "#define RVMODEL_BOOT_TO_MMODE\n",
+            "# The DUT has standard M-mode: use the framework's default M-mode boot.\n"
+            "#define STANDARD_SM_SUPPORTED\n",
+        )
+        # The CLINT provides the machine timer at the Sail platform addresses.
+        text = text.replace(
+            "//#define RVMODEL_MTIME_ADDRESS  /* unimplemented */\n"
+            "\n"
+            "//#define RVMODEL_MTIMECMP_ADDRESS   /* unimplemented */\n",
+            "#define RVMODEL_MTIME_ADDRESS     0x0200BFF8\n"
+            "#define RVMODEL_MTIMECMP_ADDRESS  0x02004000\n"
+            "\n",
+        )
     (out / "rvmodel_macros.h").write_text(text)
 
 
@@ -356,11 +426,11 @@ def main() -> None:
     out.mkdir(parents=True)
 
     gen_link_ld(out, settings)
-    gen_rvmodel_macros(out, settings)
+    gen_rvmodel_macros(out, settings, subsets)
     gen_yaml(out, config, env, subsets)
     gen_sail(out, subsets)
     gen_config_mk(out, env, excludes)
-    gen_test_config(out, args.tag, config)
+    gen_test_config(out, args.tag, config, subsets)
     print(f"Generated {out}")
 
 

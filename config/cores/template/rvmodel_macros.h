@@ -79,9 +79,9 @@
 
 #define RVMODEL_MAX_CYCLES_PER_TIMER_TICK 5000
 
-#define RVMODEL_MTIME_ADDRESS  /* unimplemented */
+//#define RVMODEL_MTIME_ADDRESS  /* unimplemented */
 
-#define RVMODEL_MTIMECMP_ADDRESS   /* unimplemented */
+//#define RVMODEL_MTIMECMP_ADDRESS   /* unimplemented */
 ##### Machine Interrupts #####
 
 #define RVMODEL_SET_MEXT_INT(_R1, _R2)
