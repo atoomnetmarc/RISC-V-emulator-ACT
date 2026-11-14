@@ -50,6 +50,9 @@ UDB_GEMFILE := $(ACT_DIR)/framework/src/act/data/Gemfile
 # RAM, so keep this modest to avoid exhausting memory on large test suites.
 JOBS ?= $(shell nproc)
 
+# Seconds a reset waits for a running generation or client before it fails.
+RESET_TIMEOUT ?= 60
+
 .PHONY: elfs clean clean-all reset-results reset-failed
 
 # COLUMNS is forced wide because the udb progress bar crashes with
@@ -64,24 +67,18 @@ elfs:
 
 clean:
 	@if [ -d "$(ACT_DIR)" ]; then cd "$(ACT_DIR)" && make clean || true; fi
-	@rm -rf "$(CONFIG_DIR)" "$(CURDIR)/work/$(CONFIG)" "$(CURDIR)/work/udb-xdg/$(CONFIG)" "$(ACT_DIR)/work/$(CONFIG)" "$(ACT_DIR)/work/udb-xdg/$(CONFIG)"
+	@python3 scripts/reset.py clean --config "$(CONFIG)" --tag "$(TAG)" --timeout "$(RESET_TIMEOUT)" --act-dir "$(ACT_DIR)"
 
 # Stored results live in work/<CONFIG>/<TAG>/ next to the built ELFs. Removing
 # the state makes the server re-register every ELF as pending, so a rerun
-# skips generation and the ELF build. Run while the server and clients are
-# idle: the state files are guarded by flock.
+# skips generation and the ELF build. The reset takes the same per-config and
+# per-pair locks as the server, so it also works while the server runs.
 reset-results:
-	@rm -f work/*/*/state.json work/*/*/summary.log work/*/*/state.lock
-	@rm -rf work/*/*/logs
+	@python3 scripts/reset.py results --timeout "$(RESET_TIMEOUT)"
 
 # Reset only the failed tests; passes are kept and not re-executed.
 reset-failed:
-	@for s in work/*/*/state.json; do \
-		[ -e "$$s" ] || continue; \
-		jq '.tests |= with_entries(select(.value.state != "fail"))' "$$s" > "$$s.tmp" && mv "$$s.tmp" "$$s"; \
-	done
-	@rm -f work/*/*/summary.log
-	@rm -rf work/*/*/logs
+	@python3 scripts/reset.py failed --timeout "$(RESET_TIMEOUT)"
 
 # Full reset of every (config, tag) pair: framework build, generated core
 # configs, and stored results. Recurses into clean for each pair found under

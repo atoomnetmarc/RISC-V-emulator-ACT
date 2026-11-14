@@ -19,6 +19,9 @@ REPO_DIR = Path(__file__).resolve().parent.parent
 # The container mounts this repository's work dir at the framework clone's
 # WORKDIR root, so all per-pair state lives in work/<CONFIG>/<TAG>/.
 ACT_WORK_DIR = REPO_DIR / "work"
+# Lock files live outside work/ so a framework clean cannot remove them and
+# split a lock across two inodes.
+LOCK_DIR = REPO_DIR / ".locks"
 OBJCOPY = "riscv64-unknown-elf-objcopy"
 
 # RVCP-SUMMARY: TEST PASSED / RVCP-SUMMARY: TEST FAILED
@@ -41,9 +44,10 @@ class PairError(Exception):
 
 
 def load_state(path: Path) -> dict:
-    if path.exists():
+    try:
         return json.loads(path.read_text())
-    return {"tests": {}}
+    except (OSError, ValueError):
+        return {"tests": {}}
 
 
 def parse_verdict(output: str) -> str | None:
@@ -63,18 +67,31 @@ def elf_to_binary(elf: Path) -> bytes:
 class Store:
     """State file, summary.log, and raw output logs for all pairs."""
 
-    def __init__(self) -> None:
-        self._locks: dict[tuple, int] = {}
-
     def _lock_path(self, config: str, tag: str) -> Path:
-        return pair_dir(config, tag) / "state.lock"
+        return LOCK_DIR / config / f"{tag}.lock"
 
-    def lock(self, config: str, tag: str):
-        path = self._lock_path(config, tag)
+    def _config_lock_path(self, config: str) -> Path:
+        return LOCK_DIR / config / ".config.lock"
+
+    def _acquire(self, path: Path, timeout: float | None):
         path.parent.mkdir(parents=True, exist_ok=True)
         fh = open(path, "w")
-        fcntl.flock(fh, fcntl.LOCK_EX)
-        return fh
+        deadline = None if timeout is None else time.monotonic() + timeout
+        while True:
+            try:
+                fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                return fh
+            except BlockingIOError:
+                if deadline is not None and time.monotonic() >= deadline:
+                    fh.close()
+                    raise TimeoutError(f"lock busy: {path}")
+                time.sleep(0.1)
+
+    def lock(self, config: str, tag: str, timeout: float | None = None):
+        return self._acquire(self._lock_path(config, tag), timeout)
+
+    def config_lock(self, config: str, timeout: float | None = None):
+        return self._acquire(self._config_lock_path(config), timeout)
 
     def state_path(self, config: str, tag: str) -> Path:
         return pair_dir(config, tag) / "state.json"
@@ -83,7 +100,45 @@ class Store:
         return load_state(self.state_path(config, tag))
 
     def write_state(self, config: str, tag: str, state: dict) -> None:
-        self.state_path(config, tag).write_text(json.dumps(state, indent=2, sort_keys=True))
+        path = self.state_path(config, tag)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(state, indent=2, sort_keys=True))
+        tmp.replace(path)
+
+    def generation_path(self, config: str, tag: str) -> Path:
+        return pair_dir(config, tag) / "generation.json"
+
+    def read_generation(self, config: str, tag: str) -> dict | None:
+        try:
+            return json.loads(self.generation_path(config, tag).read_text())
+        except (OSError, ValueError):
+            return None
+
+    def write_generation(
+        self,
+        config: str,
+        tag: str,
+        status: str,
+        error: str | None = None,
+        settings: dict | None = None,
+    ) -> None:
+        path = self.generation_path(config, tag)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {"status": status}
+        if error is not None:
+            payload["error"] = error
+        if settings is not None:
+            payload["settings"] = settings
+        tmp = path.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(payload, indent=2, sort_keys=True))
+        tmp.replace(path)
+
+    def read_settings(self, config: str, tag: str) -> dict | None:
+        try:
+            return json.loads((pair_dir(config, tag) / "settings.json").read_text())
+        except (OSError, ValueError):
+            return None
 
     def test_ids(self, config: str, tag: str) -> list:
         elf_dir = pair_dir(config, tag) / "elfs"
