@@ -80,9 +80,10 @@ SUBSETS = {
             ("Zba", "1.0.0"),
             ("Zbb", "1.0.0"),
             ("Zbc", "1.0.0"),
+            ("Zbkc", "1.0.0"),
             ("Zbs", "1.0.0"),
         ],
-        "sail": ["B", "Zba", "Zbb", "Zbc", "Zbs"],
+        "sail": ["B", "Zba", "Zbb", "Zbc", "Zbkc", "Zbs"],
         "params": ["  # B params", "  MUTABLE_MISA_B: true"],
     },
     # The standalone Zaamo/Zalrsc subsets carry no MUTABLE_MISA_A param: UDB
@@ -108,8 +109,8 @@ SUBSETS = {
         "sail": ["Zmmul"],
         "params": [],
     },
-    "Zicsr": {"udb": [("Zicsr", "2.0")], "sail": [], "params": []},
-    "Zifencei": {"udb": [("Zifencei", "2.0.0")], "sail": [], "params": []},
+    "Zicsr": {"udb": [("Zicsr", "2.0")], "sail": ["Zicsr"], "params": []},
+    "Zifencei": {"udb": [("Zifencei", "2.0.0")], "sail": ["Zifencei"], "params": []},
     # Sv32 implies S-mode and Zicsr. The emulator implements Svade (a page
     # fault when A is clear, or when a store finds D clear) and Sstvala
     # (stval holds the faulting virtual address).
@@ -121,7 +122,7 @@ SUBSETS = {
             ("Svade", "1.0.0"),
             ("Sstvala", "1.0.0"),
         ],
-        "sail": ["S", "Sv32", "Svade", "Sstvala"],
+        "sail": ["S", "U", "Sv32", "Svade", "Sstvala"],
         "params": [
             "  # S params",
             "  SXLEN: [32]",
@@ -170,9 +171,11 @@ SUBSETS = {
         "sail": ["Zbb"],
         "params": [],
     },
+    # UDB requires Zbkc when Zbc is present, and the emulator enables Zbkc
+    # whenever Zbc is enabled (RiscvEmulatorConfig.h).
     "Zbc": {
-        "udb": [("Zbc", "1.0.0")],
-        "sail": ["Zbc"],
+        "udb": [("Zbc", "1.0.0"), ("Zbkc", "1.0.0")],
+        "sail": ["Zbc", "Zbkc"],
         "params": [],
     },
     "Zbkc": {
@@ -302,6 +305,26 @@ def gen_yaml(out: Path, config: str, env: str, subsets: list) -> None:
         ext_lines += [f'  - {{ name: {name}, version: "= {version}" }}' for name, version in meta["udb"]]
         if meta["params"]:
             param_blocks.append("\n".join(meta["params"]))
+    # UDB only defines these parameters when the configuration implements the
+    # extensions that define them. Emitting them unconditionally makes the
+    # rv32i configuration fail validation ("not defined by this config").
+    if "Zicsr" in subsets:
+        param_blocks.append("\n".join([
+            "  # Interrupts (defined by Zicsr + Sm)",
+            "  MEI_INTR_IMPL: true",
+            "  MSI_INTR_IMPL: false",
+            "  MTI_INTR_IMPL: true",
+        ]))
+    if "Sv32" in subsets:
+        param_blocks.append("\n".join([
+            "  # Trap delegation: the writable medeleg and mideleg bits.",
+            "  MEDELEG_DELEGATABLE: [true, true, true, true, true, true, true, true, true, false, false, false, true, true, false, true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false]",
+            "  MIDELEG_DELEGATABLE: [false, true, false, false, false, true, false, false, false, true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false]",
+            "  # Supervisor interrupts (defined by Zicsr + S)",
+            "  SEI_INTR_IMPL: true",
+            "  SSI_INTR_IMPL: true",
+            "  STI_INTR_IMPL: true",
+        ]))
     text = text.replace(
         '  - { name: Sm, version: "= 1.13.0" }',
         '  - { name: Sm, version: "= 1.13.0" }' + ("\n" + "\n".join(ext_lines) if ext_lines else ""),
@@ -315,14 +338,83 @@ def gen_yaml(out: Path, config: str, env: str, subsets: list) -> None:
 
 
 def gen_sail(out: Path, subsets: list) -> None:
-    text = (TEMPLATE_DIR / "sail.json").read_text()
+    config = json.loads((TEMPLATE_DIR / "sail.json").read_text())
+    enabled = set()
     for subset in subsets:
-        for key in SUBSETS[subset]["sail"]:
-            # The template may already list the extension as supported.
-            text, count = re.subn(rf'("{key}": \{{\s*"supported": )false', r"\1true", text)
-            if count == 0 and not re.search(rf'"{key}": \{{\s*"supported": true', text):
-                sys.exit(f"sail.json template: expected one entry for {key!r}")
-    (out / "sail.json").write_text(text)
+        enabled.update(SUBSETS[subset]["sail"])
+    # Sv32 supports 34-bit physical addresses; without it the reference
+    # rejects a width above 32.
+    config["memory"]["physaddr_bits"] = 34 if "Sv32" in enabled else 32
+    # The emulator has no PMP.
+    config["memory"]["pmp"]["count"] = 0
+    config["memory"]["pmp"]["usable_count"] = 0
+    # The emulator splits a misaligned access at a 4 KiB page boundary.
+    config["memory"]["misaligned"]["default_allowed_within_exp"] = 12
+    # The emulator has a 9-bit ASID and no hypervisor.
+    config["memory"]["asidlen"] = 9
+    config["memory"]["vmidlen"] = 0
+    # The emulator has no Sscofpmf, so the mhpmevent CSRs are 32 bits.
+    if "Sscofpmf" not in enabled:
+        config["base"]["hpmevent_width_bits"] = 32
+    # The emulator implements only HPM counter 3.
+    config["base"]["writable_hpm_counters"]["value"] = "0x0000_0008"
+    # The emulator has no mcountinhibit.
+    config["base"]["mcountinhibit"]["supported"] = False
+    # The emulator's mcounteren and scounteren write masks.
+    config["base"]["mcounteren_writable_bits"]["value"] = "0x0000_0007"
+    config["base"]["scounteren_writable_bits"]["value"] = "0x0000_0007"
+    # The emulator's WFI returns immediately.
+    config["platform"]["wfi_is_nop"] = True
+    config["platform"]["wfi_available_to_user_mode"] = True
+    config["platform"]["archid"] = 1
+    # The emulator's medeleg and mideleg write masks.
+    config["base"]["medeleg"]["delegatable_bits"]["value"] = "0x0000_0000_000c_b1FF"
+    config["base"]["mideleg"]["delegatable_bits"]["value"] = "0x0000_0222"
+    # The emulator reports the faulting address in xtval.
+    config["base"]["xtval_nonzero"] = {
+        "illegal_instruction": True,
+        "virtual_instruction": True,
+        "load_guest_page_fault": True,
+        "samo_guest_page_fault": True,
+        "fetch_guest_page_fault": True,
+        "software_breakpoint": True,
+        "hardware_breakpoint": True,
+        "load_address_misaligned": True,
+        "load_access_fault": True,
+        "load_page_fault": True,
+        "samo_address_misaligned": True,
+        "samo_access_fault": True,
+        "samo_page_fault": True,
+        "fetch_address_misaligned": True,
+        "fetch_access_fault": True,
+        "fetch_page_fault": True,
+        "software_check": True,
+        "hardware_error": True,
+        "reserved_exceptions": False,
+    }
+    for key, value in config["extensions"].items():
+        if key == "V":
+            value["support_level"] = "Full" if key in enabled else "Disabled"
+        elif "supported" in value:
+            value["supported"] = key in enabled
+        if "mutable_misa" in value:
+            value["mutable_misa"] = key == "B"
+    # The emulator has no Stateen extensions. Every stateen bit is read-only zero.
+    stateen = config["extensions"].get("Stateen")
+    if stateen:
+        for key in ("Smstateen", "Ssstateen"):
+            if key in stateen:
+                stateen[key]["supported"] = key in enabled
+        for key in ("mstateen0", "sstateen0"):
+            if key in stateen:
+                for bit in stateen[key]:
+                    stateen[key][bit] = "CSRBit_ReadOnlyZero"
+    # The emulator has no F or V. The reference must not declare their context.
+    if "F" not in enabled:
+        config["base"]["mstatus"]["fs_legal_states"] = "ExtContext_Off"
+    if "V" not in enabled:
+        config["base"]["mstatus"]["vs_legal_states"] = "ExtContext_Off"
+    (out / "sail.json").write_text(json.dumps(config, indent=2) + "\n")
 
 
 def gen_config_mk(out: Path, env: str, excludes: list) -> None:

@@ -100,6 +100,7 @@ class GenerationQueue:
             if result.returncode != 0:
                 (pair / "generation.log").write_text(result.stdout + result.stderr)
                 raise RuntimeError(f"make elfs failed for {config}/{tag}")
+            (pair / "generation.log").unlink(missing_ok=True)
             with self.store.lock(config, tag):
                 self.store.write_generation(config, tag, READY, settings=settings)
 

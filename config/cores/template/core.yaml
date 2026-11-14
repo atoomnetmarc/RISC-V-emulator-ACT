@@ -25,6 +25,9 @@ params:
   # endianness
   M_MODE_ENDIANNESS: little
 
+  # non-standard extensions
+  NON_STANDARD_EXTENSION_IMPLEMENTED: false
+
   # trap/exception behavior
   TRAP_ON_ECALL_FROM_M: true
   TRAP_ON_EBREAK: true
@@ -61,6 +64,13 @@ params:
   # Sm params
   PRECISE_SYNCHRONOUS_EXCEPTIONS: true
   PMA_GRANULARITY: 3
+  WFI_U_MODE: true
+  WFI_FINITE: true
+
+  # Trap delegation and interrupt parameters are emitted by gen_core.py only
+  # when the configuration implements the extensions that define them
+  # (Zicsr for the M-level interrupts, S for delegation and S-level
+  # interrupts). Emitting them unconditionally makes rv32i fail validation.
 
   # MTVEC
   MTVEC_MODES: [1]
@@ -73,6 +83,7 @@ params:
 
   # HPM
   HPM_EVENTS: [0]
+  HPM_COUNTER3_WIDTH: 32
   HPM_COUNTER_EN:
     [
       false,
