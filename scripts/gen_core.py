@@ -288,6 +288,15 @@ def parse_ini_env(env: str) -> list:
     return re.findall(r"^# act-exclude-extensions: (.+)$", block.group(1), re.M)
 
 
+def parse_ini_defines(env: str) -> list:
+    # Returns the act-define macro definitions from the env block.
+    text = INI_FILE.read_text()
+    block = re.search(rf"^\[env:{re.escape(env)}\]\n(.*?)(?=^\[env:|\Z)", text, re.M | re.S)
+    if not block:
+        return []
+    return re.findall(r"^# act-define: (.+)$", block.group(1), re.M)
+
+
 def gen_yaml(out: Path, config: str, env: str, subsets: list) -> None:
     text = (TEMPLATE_DIR / "core.yaml").read_text()
     text = text.replace("rv32i variant", f"{config} variant")
@@ -443,7 +452,7 @@ def gen_link_ld(out: Path, settings: dict) -> None:
     (out / "link.ld").write_text(text)
 
 
-def gen_rvmodel_macros(out: Path, settings: dict, subsets: list) -> None:
+def gen_rvmodel_macros(out: Path, settings: dict, subsets: list, defines: list) -> None:
     text = (TEMPLATE_DIR / "rvmodel_macros.h").read_text()
     text = text.replace("{{HALT_ADDRESS}}", settings["halt_address"])
     if "Sv32" in subsets:
@@ -457,15 +466,39 @@ def gen_rvmodel_macros(out: Path, settings: dict, subsets: list) -> None:
             "# The DUT has standard M-mode: use the framework's default M-mode boot.\n"
             "#define STANDARD_SM_SUPPORTED\n",
         )
-        # The CLINT provides the machine timer at the Sail platform addresses.
+        # The CLINT provides the machine timer and the machine software
+        # interrupt at the Sail platform addresses.
         text = text.replace(
             "//#define RVMODEL_MTIME_ADDRESS  /* unimplemented */\n"
             "\n"
             "//#define RVMODEL_MTIMECMP_ADDRESS   /* unimplemented */\n",
             "#define RVMODEL_MTIME_ADDRESS     0x0200BFF8\n"
             "#define RVMODEL_MTIMECMP_ADDRESS  0x02004000\n"
+            "#define RVMODEL_MSIP_ADDRESS      0x02000000\n"
             "\n",
         )
+        # The platform interrupt CSRs raise and clear mip.MEIP. A write to
+        # 0x8C0 sets and a write to 0x8C1 clears the software-set platform
+        # bits. The _M variants serve the M-mode helpers, which do not use
+        # T-SBI.
+        text = text.replace(
+            "#define RVMODEL_SET_MEXT_INT(_R1, _R2)\n"
+            "\n"
+            "#define RVMODEL_CLR_MEXT_INT(_R1, _R2)\n",
+            "#define RVMODEL_SET_MEXT_INT(_R1, _R2) li _R1, 0x800; csrw 0x8C0, _R1\n"
+            "\n"
+            "#define RVMODEL_CLR_MEXT_INT(_R1, _R2) li _R1, 0x800; csrw 0x8C1, _R1\n"
+            "\n"
+            "#define RVMODEL_SET_MEXT_INT_M(_R1, _R2) li _R1, 0x800; csrw 0x8C0, _R1\n"
+            "\n"
+            "#define RVMODEL_CLR_MEXT_INT_M(_R1, _R2) li _R1, 0x800; csrw 0x8C1, _R1\n",
+        )
+    if defines:
+        block = ""
+        for definition in defines:
+            name = re.split(r"[\s(]", definition, maxsplit=1)[0]
+            block += f"#undef {name}\n#define {definition}\n"
+        text = text.replace("#endif // _RVMODEL_MACROS_H", block + "\n#endif // _RVMODEL_MACROS_H")
     (out / "rvmodel_macros.h").write_text(text)
 
 
@@ -511,6 +544,7 @@ def main() -> None:
         excludes = parse_ini_env(env_name_from_config(config))
     except SystemExit:
         excludes = []
+    defines = parse_ini_defines(env_name_from_config(config))
 
     out = CORES_DIR / config / args.tag
     if out.exists():
@@ -518,7 +552,7 @@ def main() -> None:
     out.mkdir(parents=True)
 
     gen_link_ld(out, settings)
-    gen_rvmodel_macros(out, settings, subsets)
+    gen_rvmodel_macros(out, settings, subsets, defines)
     gen_yaml(out, config, env, subsets)
     gen_sail(out, subsets)
     gen_config_mk(out, env, excludes)

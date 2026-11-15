@@ -31,7 +31,7 @@ Watch live progress at http://127.0.0.1:8000/ and the failure report at http://1
 
 The container runs the ACT framework and the DUT work server (`server/`, plain Python stdlib). The DUT (native emulator, simavr/AVR, or real hardware) runs on the host or on a remote machine next to the work client (`client/`). The client pulls work over HTTP, runs it on the DUT, and reports raw output back. The API contract is `server/static/openapi.yaml`
 
-`scripts/act_container.sh` resolves the image (local build wins, else `podman pull`), mounts this repo at `/act`, the emulator repo at `/emulator` and this repo's `work/` over the container clone's `work/` (so ELFs, state, summaries and run logs land on the host), and exports `INI_FILE` pointing at the emulator repo. Without arguments it starts the server and publishes `ACT_PORT` (default 8000). With arguments it exec's the given command inside the container (`--print` dumps the exact command). `podman` is the only host dependency.
+`scripts/act_container.sh` resolves the image (local build wins, else `podman pull`), mounts this repo at `/act`, the emulator repo at `/emulator` and this repo's `work/` over the container clone's `work/` (so ELFs, state, summaries and run logs land on the host), and exports `INI_FILE` pointing at the emulator repo. Without arguments it starts the server and publishes `ACT_PORT` (default 8000). With arguments it exec's the given command inside the container (`--print` dumps the exact command). `podman` is the only host dependency. The container runs at nice 19 with cgroup weight 2, so it uses every core while the machine is idle and yields to interactive work when the CPU is contended.
 
 # Client
 
