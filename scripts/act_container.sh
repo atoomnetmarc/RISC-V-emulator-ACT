@@ -20,6 +20,10 @@
 # Image resolution: local build wins, else pull the remote tag, else a helpful
 # error. No build fallback. Override names via ACT_IMAGE_LOCAL/ACT_IMAGE_REMOTE.
 # Use --print to dump the exact command without executing it.
+#
+# CPU priority: the container runs at nice 19 with cgroup weight 2. It uses
+# every core while the machine is idle and yields to interactive work when the
+# CPU is contended.
 
 set -euo pipefail
 
@@ -49,8 +53,9 @@ fi
 
 # Without arguments: start the DUT work server and publish it on the host.
 if [[ $# -eq 0 ]]; then
-  exec podman run --rm \
+  exec nice -n 19 podman run --rm \
     --pids-limit=0 \
+    --cpu-shares=2 \
     -v "${ACT_REPO}:/act" \
     -v "${EMULATOR_REPO}:/emulator" \
     -v "${ACT_REPO}/work:/opt/riscv-arch-test/work" \
@@ -72,7 +77,7 @@ if [[ -t 0 ]]; then
   TTY_FLAG=(-it)
 fi
 
-CMD=(podman run --rm --pids-limit=0 "${TTY_FLAG[@]}"
+CMD=(nice -n 19 podman run --rm --pids-limit=0 --cpu-shares=2 "${TTY_FLAG[@]}"
   -v "${ACT_REPO}:/act"
   -v "${EMULATOR_REPO}:/emulator"
   -v "${ACT_REPO}/work:/opt/riscv-arch-test/work"

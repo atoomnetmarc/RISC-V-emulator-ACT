@@ -21,12 +21,19 @@ def instruction_of(test_id: str) -> str:
     return match.group("instr") if match else stem
 
 
-def generation_error(config: str, tag: str) -> str | None:
-    """Read generation.log if it exists, otherwise return None."""
+def generation_error(store, config: str, tag: str) -> str | None:
+    """Return the generation log only while the pair is actually failed.
+
+    A pair that failed once and later succeeded keeps its old generation.log
+    on disk, so keying off the file alone would report a stale failure.
+    """
+    data = store.read_generation(config, tag) or {}
+    if data.get("status") != "failed":
+        return None
     log_path = pair_dir(config, tag) / "generation.log"
     if log_path.exists():
         return log_path.read_text(errors="replace")
-    return None
+    return data.get("error")
 
 
 def collect(store) -> dict:
@@ -43,7 +50,7 @@ def collect(store) -> dict:
             if not tag_dir.is_dir() or not state_path.exists():
                 continue
             config, tag = config_dir.name, tag_dir.name
-            err = generation_error(config, tag)
+            err = generation_error(store, config, tag)
             if err:
                 generation_errors[f"{config}/{tag}"] = err
             for test_id, entry in store.read_state(config, tag)["tests"].items():

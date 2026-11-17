@@ -25,6 +25,9 @@ SECTIONS
   .text.init TEST_BASE : { *(.text.init) } > ram
   .text.rvtest . : { *(.text.rvtest) *(.text.rvtest.*) } > ram
 
+  . = ALIGN(0x1000);
+  .text.rvmodel . : { *(.text.rvmodel) *(.text.rvmodel.*) *(.text) *(.text.*) } > ram
+
   . = ALIGN(0x4000);
   .rodata . : { *(.rodata) *(.rodata.*) *(.srodata) *(.srodata.*) } > ram
   .data   . : { *(.data) *(.data.*) *(.sdata) *(.sdata.*) } > ram
@@ -41,9 +44,6 @@ SECTIONS
   __stack_bottom = .;
   . += __stack_size * __num_harts;
   __stack_top = .;
-
-  . = ALIGN(0x1000);
-  .text.rvmodel . : { *(.text.rvmodel) *(.text.rvmodel.*) *(.text) *(.text.*) } > ram
 
   . = ALIGN(0x1000);
   _end = .;
