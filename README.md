@@ -88,10 +88,10 @@ PYTHONPATH=client python -m actwork --server http://127.0.0.1:8000 \
   --ini ../RISC-V-emulator-AVR/platformio.ini \
   --smoke --tag avr \
   --load-base 0x80000000 --halt-address 0x02000000 \
-  --run '../RISC-V-emulator-SimAVR/binaries/gcc/simavr-host ../RISC-V-emulator-AVR/hex/ATmega1284P_ACT.hex {binary}'
+  --run '../RISC-V-emulator-SimAVR/binaries/gcc/simavr-host -T 30 ../RISC-V-emulator-AVR/hex/ATmega1284P_ACT.hex {binary}'
 ```
 
-The simavr wrapper builds in `../RISC-V-emulator-SimAVR` (env `simavr-host`). To debug a failing test, point `--run` at the disassembly firmware instead: build `ATmega1284P_ACT_DISASM` (per-instruction UART disassembly, much slower) and copy it the same way.
+The simavr wrapper builds in `../RISC-V-emulator-SimAVR` (env `simavr-host`) and has no timeout unless `-T` is given. To debug a failing test, point `--run` at the disassembly firmware instead: build `ATmega1284P_ACT_DISASM` (per-instruction UART disassembly, much slower), copy it the same way and raise `-T`.
 
 # License
 
